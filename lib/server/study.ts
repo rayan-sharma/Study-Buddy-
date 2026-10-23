@@ -150,3 +150,25 @@ export function nudgesPaused(userId = DEMO_USER_ID): boolean {
     | undefined;
   return !!row?.nudges_paused;
 }
+
+// What the voice agent should study on a call that is starting now: the running session (started in
+// the last two hours), else a session due within the next 15 minutes.
+export function currentPlan(userId = DEMO_USER_ID): { topic: string; minutes: number } | undefined {
+  const db = getDb();
+  const running = db
+    .prepare(
+      `SELECT topic, planned_minutes AS minutes FROM sessions
+       WHERE user_id = ? AND status = 'running' AND started_at >= ? ORDER BY started_at DESC LIMIT 1`
+    )
+    .get(userId, new Date(Date.now() - 2 * 3_600_000).toISOString()) as { topic: string; minutes: number } | undefined;
+  if (running) return running;
+  return db
+    .prepare(
+      `SELECT topic, duration_minutes AS minutes FROM commitments
+       WHERE user_id = ? AND status IN ('scheduled','notified') AND scheduled_at <= ? AND scheduled_at >= ?
+       ORDER BY scheduled_at LIMIT 1`
+    )
+    .get(userId, new Date(Date.now() + 15 * 60_000).toISOString(), new Date(Date.now() - 2 * 3_600_000).toISOString()) as
+    | { topic: string; minutes: number }
+    | undefined;
+}

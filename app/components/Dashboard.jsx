@@ -499,6 +499,8 @@ const css = `
   color: var(--muted);
 }
 .db .up.session { color: inherit; text-decoration: none; }
+.db .ghost.demo { width: 100%; margin-top: 12px; }
+.db .demo-note { margin-top: 8px; font-size: 13px; }
 .db .duebar {
   display: flex;
   align-items: center;
@@ -743,6 +745,27 @@ export default function StudyBuddyDashboard() {
     setPlanning(task);
     setPlanAt(localInput(new Date(Date.now() + 60_000)));
     setPlanMinutes(25);
+  };
+
+  // Demo: start a linear algebra session now, get the "time to study" text, then open FaceTime to the agent.
+  const [demoStatus, setDemoStatus] = useState(null);
+  const runDemo = async () => {
+    setDemoStatus("running");
+    try {
+      const { text, call } = await api("/api/demo/start", { method: "POST" });
+      setDemoStatus(
+        text.ok
+          ? `Texted you. Opening FaceTime to ${call.line}…`
+          : `Text not sent (${text.reason}). Opening FaceTime to ${call.line}…`
+      );
+      refresh();
+      setTimeout(() => {
+        window.location.href = call.url;
+      }, 1500);
+    } catch (err) {
+      console.error(err);
+      setDemoStatus("Demo failed to start. Is the server running?");
+    }
   };
 
   const scheduleStudy = async (e) => {
@@ -1166,6 +1189,16 @@ export default function StudyBuddyDashboard() {
               ) : (
                 <p className="sub">Nothing scheduled. Use the alarm button on a task.</p>
               )}
+
+              <button
+                className="ghost demo"
+                type="button"
+                onClick={runDemo}
+                disabled={demoStatus === "running"}
+              >
+                {demoStatus === "running" ? "Starting demo…" : "Demo: study time now (linear algebra)"}
+              </button>
+              {demoStatus && demoStatus !== "running" && <p className="sub demo-note">{demoStatus}</p>}
             </div>
 
             <div className="card">
