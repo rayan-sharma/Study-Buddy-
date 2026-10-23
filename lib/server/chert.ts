@@ -29,7 +29,12 @@ async function request(path: string, init: RequestInit = {}) {
   if (!key) throw new ChertError("CHERT_API_KEY is not set");
   const res = await fetch(`${base()}${path}`, {
     ...init,
-    headers: { authorization: `Bearer ${key}`, ...(init.headers ?? {}) },
+    headers: {
+      authorization: `Bearer ${key}`,
+      // Chert needs the project for line and message requests ("project_required" otherwise).
+      "x-chert-project-id": env("CHERT_PROJECT_ID") ?? "e6d4fc75-3b00-4ac4-81c3-5360dc191363",
+      ...(init.headers ?? {}),
+    },
     signal: AbortSignal.timeout(15_000),
   });
   const text = await res.text();
@@ -46,13 +51,17 @@ async function request(path: string, init: RequestInit = {}) {
   return body;
 }
 
-// Chert's list responses may wrap items as {data: [...]}, {lines|messages|items: [...]} or a bare array.
+// Chert lists come as {data: {items: [...]}}; also accept {data: [...]}, {items: [...]} or a bare array.
 function items(body: unknown): Record<string, unknown>[] {
   if (Array.isArray(body)) return body;
   if (body && typeof body === "object") {
-    for (const key of ["data", "lines", "messages", "items", "results"]) {
+    for (const key of ["data", "items", "lines", "messages", "results"]) {
       const value = (body as Record<string, unknown>)[key];
       if (Array.isArray(value)) return value;
+      if (value && typeof value === "object") {
+        const nested = items(value);
+        if (nested.length) return nested;
+      }
     }
   }
   return [];
@@ -112,7 +121,8 @@ function normalize(m: Record<string, unknown>): ChertMessage | null {
     id,
     direction,
     text: str(m.text, m.body, m.content, m.message) ?? "",
-    handle: str(m.sender, m.from, m.handle, m.recipient, m.to) ?? null,
+    // Chert only exposes a masked number such as "•••0661".
+    handle: str(m.sender, m.from, m.handle, m.recipient, m.to, m.masked_recipient) ?? null,
     at: str(m.created_at, m.received_at, m.sent_at, m.timestamp) ?? new Date().toISOString(),
   };
 }
@@ -129,5 +139,9 @@ export function callLinkText() {
   return `Tap to call your study buddy: facetime-audio://${line} (or FaceTime ${line})`;
 }
 
-export const sameNumber = (a: string | null | undefined, b: string | null | undefined) =>
-  !!a && !!b && digits(a).slice(-10) === digits(b).slice(-10);
+// Masked numbers ("•••0661") can only be compared on their last four digits.
+export function sameNumber(a: string | null | undefined, b: string | null | undefined) {
+  if (!a || !b) return false;
+  const n = a.includes("•") || b.includes("•") ? 4 : 10;
+  return digits(a).slice(-n) === digits(b).slice(-n);
+}
