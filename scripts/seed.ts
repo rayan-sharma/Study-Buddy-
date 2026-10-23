@@ -53,7 +53,11 @@ const seed = db.transaction(() => {
     `INSERT INTO tasks (user_id, title, subject, due_at, pri, status, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   );
-  for (const t of tasks) insertTask.run(DEMO_USER_ID, t.title, t.subject, dueAt(t.due), t.pri, t.status, now, now);
+  // Lists are newest first, so stagger creation times to keep the original order.
+  tasks.forEach((t, i) => {
+    const created = new Date(Date.now() - i * 1000).toISOString();
+    insertTask.run(DEMO_USER_ID, t.title, t.subject, dueAt(t.due), t.pri, t.status, created, created);
+  });
 
   const insertNote = db.prepare(
     `INSERT INTO notes (user_id, title, subject, body, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
