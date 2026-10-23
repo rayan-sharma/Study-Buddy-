@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import D2LCanvas from "./D2LCanvas";
 import {
   BookOpen,
   MessageCircle,
@@ -526,6 +527,7 @@ const NAV = [
 
 export default function StudyBuddyDashboard() {
   const [activeNav, setActiveNav] = useState("Tasks");
+  const [mathWorkspaceOpen, setMathWorkspaceOpen] = useState(false);
   const [tab, setTab] = useState("todo");
   const [tasks, setTasks] = useState(seed);
   const [notes, setNotes] = useState(seedNotes);
@@ -627,6 +629,7 @@ export default function StudyBuddyDashboard() {
             aria-current={activeNav === label ? "page" : undefined}
             onClick={() => {
               setActiveNav(label);
+              if (label === "Subjects") setMathWorkspaceOpen(false);
               if (label === "Tasks") setTab("todo");
             }}
           >
@@ -693,6 +696,7 @@ export default function StudyBuddyDashboard() {
               <ArrowRight size={16} />
             </a>
           </section>
+
         </main>
       ) : activeNav === "Tasks" ? (
         <main className="page">
@@ -982,6 +986,97 @@ export default function StudyBuddyDashboard() {
               )}
             </div>
           </aside>
+        </main>
+      ) : activeNav === "Subjects" ? (
+        <main className="page" style={{ gridTemplateColumns: "1fr" }}>
+          <header className="head">
+            <div>
+              <h1>{mathWorkspaceOpen ? "Math" : "Subjects"}</h1>
+              <p className="sub">
+                {mathWorkspaceOpen
+                  ? "Explore equations and visualize math concepts."
+                  : "Choose a subject workspace to get started."}
+              </p>
+            </div>
+            {mathWorkspaceOpen && (
+              <button
+                type="button"
+                onClick={() => setMathWorkspaceOpen(false)}
+                style={{
+                  border: "1px solid #e8eaf0",
+                  borderRadius: 10,
+                  padding: "10px 14px",
+                  background: "#fff",
+                  color: "#0b1220",
+                  font: "inherit",
+                }}
+              >
+                All subjects
+              </button>
+            )}
+          </header>
+
+          {mathWorkspaceOpen ? (
+            <D2LCanvas
+              title="Desmos graphing calculator"
+              description="Create and explore interactive graphs for your math work."
+              initialExpression="y=x^2"
+            />
+          ) : (
+            <section
+              className="panel"
+              style={{
+                padding: 24,
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                gap: 16,
+              }}
+            >
+              <article
+                style={{
+                  border: "1px solid #e8eaf0",
+                  borderRadius: 16,
+                  padding: 20,
+                }}
+              >
+                <div
+                  style={{
+                    color: "#6c7cf5",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    marginBottom: 10,
+                    textTransform: "uppercase",
+                    letterSpacing: ".08em",
+                  }}
+                >
+                  Math tool
+                </div>
+                <h2 style={{ margin: "0 0 8px", fontSize: 20 }}>Desmos</h2>
+                <p className="sub" style={{ lineHeight: 1.6, marginBottom: 18 }}>
+                  Graph equations, compare functions, and explore concepts with
+                  an interactive calculator.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setMathWorkspaceOpen(true)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    border: 0,
+                    borderRadius: 10,
+                    padding: "11px 16px",
+                    background: "#0b1220",
+                    color: "#fff",
+                    font: "inherit",
+                  }}
+                >
+                  Open math workspace
+                  <ArrowRight size={16} />
+                </button>
+              </article>
+            </section>
+          )}
         </main>
       ) : (
         <main className="page" style={{ gridTemplateColumns: "1fr" }}>

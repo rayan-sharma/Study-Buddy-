@@ -10,6 +10,37 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --color-brand-primary: #6c7cf5;
+  --color-brand-secondary: #8b6fe0;
+  --color-neutral-background: #fbfbfd;
+  --color-neutral-surface: #f6f7f9;
+  --color-neutral-dark: #151827;
+  --color-text-primary: #0b1220;
+  --color-text-secondary: #667085;
+  --color-border-light: #e8eaf0;
+  --font-heading: var(--font-geist-sans);
+  --tracking-mega-tight: -0.055em;
+  --shadow-soft: 0 4px 16px rgb(40 50 100 / 8%);
+  --shadow-medium: 0 16px 40px rgb(40 50 100 / 12%);
+  --animate-float: float 4s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.hero-gradient {
+  background: linear-gradient(180deg, #fff 0%, #f9f8ff 100%);
+}
+
+.blur-gradient {
+  background: linear-gradient(135deg, #c9d4ff 0%, #ead9ff 55%, #ffd9c8 100%);
+  filter: blur(80px);
+}
+
+.gradient-peach {
+  background: linear-gradient(135deg, #fff0e6 0%, #f4eaff 100%);
 }
 
 @media (prefers-color-scheme: dark) {
