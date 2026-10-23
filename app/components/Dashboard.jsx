@@ -22,6 +22,8 @@ import {
   Search,
   ChevronDown,
   CalendarDays,
+  AlarmClock,
+  Phone,
 } from "lucide-react";
 
 const css = `
@@ -470,6 +472,52 @@ const css = `
   .db .page { padding: 20px 16px 40px; }
   .db .notes { grid-template-columns: 1fr; }
 }
+
+.db .studyform { display: grid; gap: 8px; }
+.db .studyform input,
+.db .studyform select {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 14px;
+}
+.db .studyform .row { display: flex; gap: 8px; }
+.db .studyform .primary { height: 36px; }
+.db .ghost {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 14px;
+  height: 36px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--muted);
+}
+.db .up.session { color: inherit; text-decoration: none; }
+.db .duebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border: 1px solid #c9cffb;
+  border-radius: 12px;
+  background: var(--tint);
+  color: var(--ink);
+  font-size: 14px;
+  text-decoration: none;
+}
+.db .duebar span { display: inline-flex; align-items: center; gap: 8px; }
+.db .duebar svg { color: var(--accent); }
+.db .duebar .go {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-weight: 600;
+}
 `;
 
 const SUBJECTS = [
@@ -509,6 +557,12 @@ function agoLabel(iso) {
 }
 
 const toTask = (t) => ({ ...t, due: dueLabel(t.due_at) });
+
+// Value for <input type="datetime-local"> in the browser's time zone.
+const localInput = (d) =>
+  new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+const clock = (iso) =>
+  new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 const toNote = (n) => ({ ...n, at: agoLabel(n.updated_at) });
 
 async function api(path, { method = "GET", body } = {}) {
@@ -545,6 +599,12 @@ export default function StudyBuddyDashboard() {
   const [tasks, setTasks] = useState([]);
   const [notes, setNotes] = useState([]);
   const [sel, setSel] = useState(null);
+  // Study sessions: the next one scheduled, whether it is due now, and the task being scheduled.
+  const [nextSession, setNextSession] = useState(null);
+  const [sessionDue, setSessionDue] = useState(false);
+  const [planning, setPlanning] = useState(null);
+  const [planAt, setPlanAt] = useState("");
+  const [planMinutes, setPlanMinutes] = useState(25);
   // Note being typed into: polling must not overwrite its unsaved text.
   const dirtyNote = useRef(null);
   const saveTimer = useRef(null);
@@ -592,6 +652,11 @@ export default function StudyBuddyDashboard() {
         s !== null && state.notes.some((n) => n.id === s)
           ? s
           : state.notes[0]?.id ?? null
+      );
+      setNextSession(state.nextCommitment);
+      setSessionDue(
+        !!state.nextCommitment &&
+          new Date(state.nextCommitment.scheduled_at).getTime() <= Date.now()
       );
     } catch (err) {
       console.error(err);
@@ -667,6 +732,30 @@ export default function StudyBuddyDashboard() {
       }
       if (dirtyNote.current === id) dirtyNote.current = null;
     }, 500);
+  };
+
+  const planStudy = (task) => {
+    setPlanning(task);
+    setPlanAt(localInput(new Date(Date.now() + 60_000)));
+    setPlanMinutes(25);
+  };
+
+  const scheduleStudy = async (e) => {
+    e.preventDefault();
+    if (!planning || !planAt) return;
+    const created = await save("/api/commitments", {
+      method: "POST",
+      body: {
+        topic: planning.title,
+        task_id: planning.id,
+        start_at: new Date(planAt).toISOString(),
+        duration_minutes: planMinutes,
+      },
+    });
+    if (created) {
+      setPlanning(null);
+      refresh();
+    }
   };
 
   const deleteNote = () => {
@@ -782,6 +871,14 @@ export default function StudyBuddyDashboard() {
         <main className="page">
           <header className="head">
             <div>
+              {sessionDue && nextSession && (
+                <a className="duebar" href={`/study/${nextSession.id}`}>
+                  <span>
+                    <Phone size={16} /> Time to study <b>{nextSession.topic}</b>
+                  </span>
+                  <span className="go">Start call</span>
+                </a>
+              )}
               <h1>Your study board</h1>
               <p className="sub">
                 {counts.todo + counts.doing} tasks open · {counts.doing} in progress right now
@@ -921,6 +1018,17 @@ export default function StudyBuddyDashboard() {
                               </button>
                             )}
 
+                            {t.status !== "done" && (
+                              <button
+                                className="ib"
+                                onClick={() => planStudy(t)}
+                                aria-label="Schedule a study session"
+                                title="Study at…"
+                              >
+                                <AlarmClock size={15} />
+                              </button>
+                            )}
+
                             <button
                               className="ib"
                               onClick={() => remove(t.id)}
@@ -1009,6 +1117,50 @@ export default function StudyBuddyDashboard() {
           </section>
 
           <aside className="rail">
+            <div className="card">
+              <h2>Study session</h2>
+
+              {planning ? (
+                <form className="studyform" onSubmit={scheduleStudy}>
+                  <small className="sub">{planning.title}</small>
+                  <input
+                    type="datetime-local"
+                    value={planAt}
+                    onChange={(e) => setPlanAt(e.target.value)}
+                    aria-label="Study start time"
+                    required
+                  />
+                  <select
+                    value={planMinutes}
+                    onChange={(e) => setPlanMinutes(Number(e.target.value))}
+                    aria-label="Session length"
+                  >
+                    {[15, 25, 50].map((m) => (
+                      <option key={m} value={m}>{m} minutes</option>
+                    ))}
+                  </select>
+                  <div className="row">
+                    <button className="primary" type="submit">Schedule</button>
+                    <button className="ghost" type="button" onClick={() => setPlanning(null)}>
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : nextSession ? (
+                <a className="up session" href={`/study/${nextSession.id}`}>
+                  {sessionDue ? <Phone size={16} /> : <AlarmClock size={16} />}
+                  <div>
+                    {nextSession.topic}
+                    <small>
+                      {sessionDue ? "Now · tap to start the call" : `${clock(nextSession.scheduled_at)} · ${nextSession.duration_minutes} min`}
+                    </small>
+                  </div>
+                </a>
+              ) : (
+                <p className="sub">Nothing scheduled. Use the alarm button on a task.</p>
+              )}
+            </div>
+
             <div className="card">
               <h2>Progress</h2>
               <div className="ring">

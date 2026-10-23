@@ -151,7 +151,8 @@ const globalForDb = globalThis as unknown as { studyBuddyDb?: Database.Database 
 
 export function getDb(): Database.Database {
   if (globalForDb.studyBuddyDb) return globalForDb.studyBuddyDb;
-  const file = resolve(process.env.DATABASE_PATH || "data/studybuddy.db");
+  // The path comes from env at runtime; tell the bundler not to trace the whole project for it.
+  const file = resolve(/*turbopackIgnore: true*/ process.env.DATABASE_PATH || "data/studybuddy.db");
   mkdirSync(dirname(file), { recursive: true });
   const db = new Database(file);
   db.exec(SCHEMA);
