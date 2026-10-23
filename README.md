@@ -16,6 +16,22 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Canvas course dashboard
+
+The dashboard can load active courses and upcoming assignments from a Canvas
+LMS instance. Set the server-side instance URL in `.env.local`:
+
+```text
+CANVAS_BASE_URL=https://your-school.instructure.com
+```
+
+Open the dashboard's D2L section and connect with a personal Canvas access
+token. The token is sent to this app's backend in an authorization header and
+is not saved by the app. Treat it like a password, do not put it in source code,
+and disconnect or close the dashboard when finished. Your Canvas administrator
+may disable personal access tokens; if so, ask them about an approved Canvas
+integration.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
