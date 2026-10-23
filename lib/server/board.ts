@@ -84,7 +84,8 @@ export function deleteTask(id: number, userId = DEMO_USER_ID): boolean {
 
 export function listNotes(userId = DEMO_USER_ID): Note[] {
   return getDb()
-    .prepare(`SELECT ${NOTE_COLS} FROM notes WHERE user_id = ? ORDER BY updated_at DESC, id DESC`)
+    // Creation order keeps the list stable while a note is being edited.
+    .prepare(`SELECT ${NOTE_COLS} FROM notes WHERE user_id = ? ORDER BY created_at DESC, id DESC`)
     .all(userId) as Note[];
 }
 

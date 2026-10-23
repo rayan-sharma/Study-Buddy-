@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import D2LCanvas from "./D2LCanvas";
 import {
   BookOpen,
@@ -482,31 +482,44 @@ const PRI = {
   low: "#5cc08f",
 };
 
-const seed = [
-  { id: 1, title: "Finish linear functions worksheet", subject: "Math", due: "Today", pri: "high", status: "doing" },
-  { id: 2, title: "Read chapter 6: Newton's laws", subject: "Physics", due: "Tomorrow", pri: "med", status: "todo" },
-  { id: 3, title: "Outline essay on the Industrial Revolution", subject: "History", due: "Fri", pri: "med", status: "todo" },
-  { id: 4, title: "Practice quadratic equations (20 problems)", subject: "Math", due: "Sat", pri: "low", status: "todo" },
-  { id: 5, title: "Draft lab report introduction", subject: "Physics", due: "Today", pri: "high", status: "doing" },
-  { id: 6, title: "Vocabulary quiz review", subject: "English", due: "Mon", pri: "low", status: "done" },
-];
+// Tasks and notes live in SQLite behind /api (seed them with `npm run seed`).
+const DAY = 86_400_000;
+const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 
-const seedNotes = [
-  {
-    id: 1,
-    title: "Slope intuition",
-    subject: "Math",
-    body: "Slope (m) = rise / run.\n\nPositive m: line goes up to the right.\nNegative m: line goes down.\nThe intercept (b) is where the line crosses the y-axis.",
-    at: "Today",
-  },
-  {
-    id: 2,
-    title: "Newton's three laws",
-    subject: "Physics",
-    body: "1. Inertia: objects keep their motion unless a force acts.\n2. F = ma.\n3. Every action has an equal and opposite reaction.",
-    at: "Yesterday",
-  },
-];
+// due_at (ISO) -> the short labels the cards show.
+function dueLabel(iso) {
+  if (!iso) return "This week";
+  const d = new Date(iso);
+  const days = Math.round((startOfDay(d) - startOfDay(new Date())) / DAY);
+  if (days < 0) return "Overdue";
+  if (days === 0) return "Today";
+  if (days === 1) return "Tomorrow";
+  if (days < 7) return d.toLocaleDateString(undefined, { weekday: "short" });
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function agoLabel(iso) {
+  const d = new Date(iso);
+  if (Date.now() - d.getTime() < 60_000) return "Just now";
+  const days = Math.round((startOfDay(new Date()) - startOfDay(d)) / DAY);
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+const toTask = (t) => ({ ...t, due: dueLabel(t.due_at) });
+const toNote = (n) => ({ ...n, at: agoLabel(n.updated_at) });
+
+async function api(path, { method = "GET", body } = {}) {
+  const res = await fetch(path, {
+    method,
+    headers: body ? { "content-type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`${method} ${path} failed: ${res.status}`);
+  return res.status === 204 ? null : res.json();
+}
 
 const order = ["todo", "doing", "done"];
 
@@ -529,9 +542,12 @@ export default function StudyBuddyDashboard() {
   const [activeNav, setActiveNav] = useState("Tasks");
   const [mathWorkspaceOpen, setMathWorkspaceOpen] = useState(false);
   const [tab, setTab] = useState("todo");
-  const [tasks, setTasks] = useState(seed);
-  const [notes, setNotes] = useState(seedNotes);
-  const [sel, setSel] = useState(1);
+  const [tasks, setTasks] = useState([]);
+  const [notes, setNotes] = useState([]);
+  const [sel, setSel] = useState(null);
+  // Note being typed into: polling must not overwrite its unsaved text.
+  const dirtyNote = useRef(null);
+  const saveTimer = useRef(null);
   const [title, setTitle] = useState("");
   const [subject, setSubject] = useState("Math");
   const [q, setQ] = useState("");
@@ -554,60 +570,111 @@ export default function StudyBuddyDashboard() {
   const upcoming = tasks.filter((t) => t.status !== "done").slice(0, 3);
   const note = notes.find((n) => n.id === sel);
 
-  const move = (id, direction) =>
-    setTasks((ts) =>
-      ts.map((t) =>
-        t.id === id
-          ? { ...t, status: order[order.indexOf(t.status) + direction] }
-          : t
-      )
-    );
+  // Latest notes for the debounced save, which runs after this render.
+  const notesRef = useRef(notes);
+  useEffect(() => {
+    notesRef.current = notes;
+  }, [notes]);
 
-  const remove = (id) => setTasks((ts) => ts.filter((t) => t.id !== id));
+  // Load from the API and keep polling so changes made elsewhere (iMessage, calls) show up.
+  const refresh = useCallback(async () => {
+    try {
+      const state = await api("/api/state");
+      setTasks(state.tasks.map(toTask));
+      setNotes((local) =>
+        state.notes.map((n) =>
+          n.id === dirtyNote.current
+            ? local.find((l) => l.id === n.id) ?? toNote(n)
+            : toNote(n)
+        )
+      );
+      setSel((s) =>
+        s !== null && state.notes.some((n) => n.id === s)
+          ? s
+          : state.notes[0]?.id ?? null
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
 
-  const addTask = (e) => {
+  useEffect(() => {
+    const first = setTimeout(refresh, 0);
+    const timer = setInterval(refresh, 3000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(timer);
+    };
+  }, [refresh]);
+
+  // Update the screen at once, then save; on failure, reload what the server has.
+  const save = (path, init) => api(path, init).catch((err) => {
+    console.error(err);
+    refresh();
+  });
+
+  const move = (id, direction) => {
+    const task = tasks.find((t) => t.id === id);
+    const status = task && order[order.indexOf(task.status) + direction];
+    if (!status) return;
+    setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, status } : t)));
+    save(`/api/tasks/${id}`, { method: "PATCH", body: { status } });
+  };
+
+  const remove = (id) => {
+    setTasks((ts) => ts.filter((t) => t.id !== id));
+    save(`/api/tasks/${id}`, { method: "DELETE" });
+  };
+
+  const addTask = async (e) => {
     e.preventDefault();
     if (!title.trim()) return;
 
-    setTasks((ts) => [
-      {
-        id: Date.now(),
-        title: title.trim(),
-        subject,
-        due: "This week",
-        pri: "med",
-        status: "todo",
-      },
-      ...ts,
-    ]);
+    const created = await save("/api/tasks", {
+      method: "POST",
+      body: { title: title.trim(), subject },
+    });
+    if (created) setTasks((ts) => [toTask(created.task), ...ts]);
 
     setTitle("");
   };
 
-  const addNote = () => {
-    const n = {
-      id: Date.now(),
-      title: "Untitled note",
-      subject: "Math",
-      body: "",
-      at: "Just now",
-    };
+  const addNote = async () => {
+    const created = await save("/api/notes", { method: "POST", body: {} });
+    if (!created) return;
 
-    setNotes((ns) => [n, ...ns]);
-    setSel(n.id);
+    setNotes((ns) => [toNote(created.note), ...ns]);
+    setSel(created.note.id);
     setTab("notes");
     setActiveNav("Tasks");
   };
 
-  const editNote = (patch) =>
+  const editNote = (patch) => {
+    const id = sel;
+    dirtyNote.current = id;
     setNotes((ns) =>
-      ns.map((n) => (n.id === sel ? { ...n, ...patch, at: "Just now" } : n))
+      ns.map((n) => (n.id === id ? { ...n, ...patch, at: "Just now" } : n))
     );
+    // Debounce typing; the latest text is sent once the user pauses.
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      const latest = notesRef.current.find((n) => n.id === id);
+      if (latest) {
+        await save(`/api/notes/${id}`, {
+          method: "PATCH",
+          body: { title: latest.title || "Untitled note", subject: latest.subject, body: latest.body },
+        });
+      }
+      if (dirtyNote.current === id) dirtyNote.current = null;
+    }, 500);
+  };
 
   const deleteNote = () => {
-    const rest = notes.filter((n) => n.id !== sel);
+    const id = sel;
+    const rest = notes.filter((n) => n.id !== id);
     setNotes(rest);
     setSel(rest[0]?.id ?? null);
+    if (id !== null) save(`/api/notes/${id}`, { method: "DELETE" });
   };
 
   const C = 2 * Math.PI * 30;
