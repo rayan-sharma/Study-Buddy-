@@ -6,9 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts",
+    "worker": "tsx --env-file-if-exists=.env.local scripts/worker.ts"
   },
   "dependencies": {
+    "better-sqlite3": "^13.0.3",
     "lucide-react": "^1.61.0",
     "next": "16.4.3",
     "openai": "^7.43.0",
@@ -19,12 +22,14 @@
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }
