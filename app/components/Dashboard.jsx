@@ -4,7 +4,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import ChatbotWidget from "./ChatbotWidget";
+import CanvasDashboard from "./CanvasDashboard";
 import D2LCanvas from "./D2LCanvas";
+import QuestionListWidget from "./QuestionListWidget";
 import {
   BookOpen,
   CheckSquare,
@@ -665,29 +667,32 @@ export default function StudyBuddyDashboard() {
         <main className="page" style={{ gridTemplateColumns: "1fr" }}>
           <header className="head">
             <div>
-              <h1>DePaul D2L</h1>
+              <h1>Canvas learning dashboard</h1>
               <p className="sub">
-                Access your courses and assignments through Brightspace.
+                See your active courses and upcoming assignments in one place.
               </p>
             </div>
           </header>
 
-          <section className="panel" style={{ padding: 28 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
-              <BookOpen size={30} color="#6c7cf5" />
-              <div>
-                <h2 style={{ margin: 0, fontSize: 20 }}>Connect to your courses</h2>
-                <p className="sub" style={{ marginTop: 6 }}>
-                  Open DePaul's official learning platform.
-                </p>
-              </div>
+          <CanvasDashboard />
+
+          <section
+            className="panel"
+            style={{
+              padding: "18px 22px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 16,
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <h2 style={{ margin: 0, fontSize: 16 }}>Need DePaul Brightspace?</h2>
+              <p className="sub" style={{ marginTop: 5 }}>
+                Open your existing D2L portal directly.
+              </p>
             </div>
-
-            <p style={{ color: "#6b7280", lineHeight: 1.7, fontSize: 14 }}>
-              Your actual course and assignment data is not connected to StudyBuddy yet.
-              For automatic syncing, we'll need to set up an approved D2L API integration.
-            </p>
-
             <a
               href="https://d2l.depaul.edu/d2l/home"
               target="_blank"
@@ -702,7 +707,6 @@ export default function StudyBuddyDashboard() {
                 borderRadius: 10,
                 textDecoration: "none",
                 fontSize: 14,
-                marginTop: 12,
               }}
             >
               Open DePaul D2L
@@ -1116,6 +1120,7 @@ export default function StudyBuddyDashboard() {
         </main>
       )}
       <ChatbotWidget />
+      <QuestionListWidget />
     </div>
   );
 }
