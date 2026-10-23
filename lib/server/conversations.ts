@@ -131,9 +131,11 @@ export function ingestCall(input: z.infer<typeof callIngest>, userId = DEMO_USER
   return { conversationId: id, created: !existing, changed: true };
 }
 
+export const threadIdFor = (phone: string) => conversationId("imessage", phone);
+
 // One running iMessage thread per phone number.
 export function appendToThread(phone: string, message: Message): Conversation {
-  const id = conversationId("imessage", phone);
+  const id = threadIdFor(phone);
   const conversation = getConversation(id) ?? {
     id,
     source: "imessage" as const,

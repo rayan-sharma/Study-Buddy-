@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts",
-    "worker": "tsx --env-file-if-exists=.env.local scripts/worker.ts"
+    "worker": "tsx --env-file-if-exists=.env.local scripts/worker.ts",
+    "chert:check": "tsx --env-file-if-exists=.env.local scripts/chert-check.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

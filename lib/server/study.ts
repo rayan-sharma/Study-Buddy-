@@ -139,3 +139,14 @@ export function activeSession(userId = DEMO_USER_ID): Session | undefined {
     )
     .get(userId) as Session | undefined;
 }
+
+export function markNotified(id: string) {
+  getDb().prepare("UPDATE commitments SET status = 'notified' WHERE id = ? AND status = 'scheduled'").run(id);
+}
+
+export function nudgesPaused(userId = DEMO_USER_ID): boolean {
+  const row = getDb().prepare("SELECT nudges_paused FROM users WHERE id = ?").get(userId) as
+    | { nudges_paused: number }
+    | undefined;
+  return !!row?.nudges_paused;
+}
