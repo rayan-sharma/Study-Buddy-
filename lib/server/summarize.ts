@@ -50,7 +50,6 @@ export async function summarizeConversation(conversationId: string) {
     title: `Call: ${summary.title}`,
     subject,
     body: lines.join("\n\n"),
-    conversation_id: conversationId,
   });
   return summary;
 }

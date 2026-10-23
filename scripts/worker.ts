@@ -8,9 +8,9 @@ const TICK_MS = 2_000;
 
 const handlers: Record<string, (job: Job) => Promise<string | void>> = {
   async summarize(job) {
-    if (!job.conversation_id) throw new Error("summarize job without conversation");
-    const summary = await summarizeConversation(job.conversation_id);
-    console.log(`[worker] summarized ${job.conversation_id}: ${summary?.title ?? "(empty)"}`);
+    if (!job.ref) throw new Error("summarize job without conversation");
+    const summary = await summarizeConversation(job.ref);
+    console.log(`[worker] summarized ${job.ref}: ${summary?.title ?? "(empty)"}`);
   },
 };
 
@@ -22,7 +22,7 @@ async function runJob(job: Job) {
   } catch (err) {
     const retrying = failJob(job, err);
     console.error(`[worker] ${job.job_type} ${job.id} failed (${retrying ? "will retry" : "giving up"}):`, err);
-    if (!retrying && job.job_type === "summarize" && job.conversation_id) markSummaryFailed(job.conversation_id);
+    if (!retrying && job.job_type === "summarize" && job.ref) markSummaryFailed(job.ref);
   }
 }
 

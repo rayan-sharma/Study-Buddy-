@@ -1,5 +1,8 @@
-// Study conversations: FaceTime call transcripts now, iMessage and web chat threads later. Server-only.
+// Study conversations (FaceTime call transcripts, iMessage threads), one JSON file each in data/conversations.
+// Server-only. Summaries are produced by the worker (job "summarize", ref = conversation id).
 import { randomUUID } from "node:crypto";
+import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { z } from "zod";
 import { DEMO_USER_ID, getDb, nowIso } from "./db";
 
@@ -32,96 +35,128 @@ export const callSummary = z.object({
 });
 export type CallSummary = z.infer<typeof callSummary>;
 
-export type ConversationRow = {
+export type Message = { role: "user" | "assistant"; text: string; at: string };
+
+export type Conversation = {
   id: string;
   source: "facetime" | "imessage" | "web";
   started_at: string;
   ended_at: string | null;
   title: string | null;
   summary_status: "none" | "pending" | "done" | "failed" | "empty";
-  message_count: number;
+  summary: CallSummary | null;
+  messages: Message[];
 };
 
-export type Message = { seq: number; role: "user" | "assistant"; text: string; created_at: string };
+export type ConversationListItem = Omit<Conversation, "messages" | "summary"> & {
+  message_count: number;
+  preview: string | null;
+};
+
+const SAFE_ID = /^[a-z0-9][a-z0-9-]{0,120}$/;
+
+const dir = () => resolve(/*turbopackIgnore: true*/ process.env.CONVERSATIONS_DIR || "data/conversations");
+
+// Ids double as file names, so only ever build them from a fixed prefix and sanitized parts.
+const conversationId = (source: string, key: string) =>
+  `${source}-${key.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 100)}`;
+
+export function getConversation(id: string): Conversation | undefined {
+  if (!SAFE_ID.test(id)) return undefined;
+  try {
+    return JSON.parse(readFileSync(join(dir(), `${id}.json`), "utf8")) as Conversation;
+  } catch {
+    return undefined;
+  }
+}
+
+// Write to a temp file and rename, so readers never see a half-written conversation.
+function save(conversation: Conversation) {
+  mkdirSync(dir(), { recursive: true });
+  const file = join(dir(), `${conversation.id}.json`);
+  const tmp = `${file}.${randomUUID()}.tmp`;
+  writeFileSync(tmp, JSON.stringify(conversation, null, 2));
+  renameSync(tmp, file);
+}
+
+export function listConversations(): ConversationListItem[] {
+  let files: string[];
+  try {
+    files = readdirSync(dir()).filter((f) => f.endsWith(".json"));
+  } catch {
+    return [];
+  }
+  return files
+    .map((f) => getConversation(f.slice(0, -5)))
+    .filter((c): c is Conversation => !!c)
+    .map(({ messages, summary, ...rest }) => ({
+      ...rest,
+      message_count: messages.length,
+      preview: summary?.summary ?? messages.at(-1)?.text ?? null,
+    }))
+    .sort((a, b) => b.started_at.localeCompare(a.started_at));
+}
+
+function queueSummary(id: string, messageCount: number, userId: string) {
+  getDb()
+    .prepare(
+      `INSERT OR IGNORE INTO jobs (id, user_id, ref, job_type, due_at, idempotency_key, created_at)
+       VALUES (?, ?, ?, 'summarize', ?, ?, ?)`
+    )
+    .run(randomUUID(), userId, id, nowIso(), `summarize:${id}:${messageCount}`, nowIso());
+}
 
 // Idempotent: posting the same call again replaces its transcript and only re-summarizes if it changed.
 export function ingestCall(input: z.infer<typeof callIngest>, userId = DEMO_USER_ID) {
-  const db = getDb();
-  const externalId = `facetime:${input.call_id}`;
-  const messages = input.messages.filter((m) => m.text.trim());
+  const id = conversationId("facetime", input.call_id);
+  const existing = getConversation(id);
+  const messages: Message[] = input.messages
+    .filter((m) => m.text.trim())
+    .map((m) => ({ role: m.role, text: m.text.trim(), at: m.at ?? input.started_at }));
 
-  return db.transaction(() => {
-    const existing = db
-      .prepare(
-        `SELECT c.id, (SELECT COUNT(*) FROM conversation_messages m WHERE m.conversation_id = c.id) AS n
-         FROM conversations c WHERE c.external_id = ?`
-      )
-      .get(externalId) as { id: string; n: number } | undefined;
-
-    if (existing && existing.n === messages.length) {
-      return { conversationId: existing.id, created: false, changed: false };
-    }
-
-    const id = existing?.id ?? randomUUID();
-    const status = messages.length ? "pending" : "empty";
-    if (existing) {
-      db.prepare("UPDATE conversations SET ended_at = ?, summary_status = ? WHERE id = ?")
-        .run(input.ended_at ?? null, status, id);
-      db.prepare("DELETE FROM conversation_messages WHERE conversation_id = ?").run(id);
-    } else {
-      db.prepare(
-        `INSERT INTO conversations (id, user_id, source, external_id, started_at, ended_at, summary_status)
-         VALUES (?, ?, 'facetime', ?, ?, ?, ?)`
-      ).run(id, userId, externalId, input.started_at, input.ended_at ?? null, status);
-    }
-
-    const insert = db.prepare(
-      `INSERT INTO conversation_messages (conversation_id, seq, role, text, created_at) VALUES (?, ?, ?, ?, ?)`
-    );
-    messages.forEach((m, seq) => insert.run(id, seq, m.role, m.text.trim(), m.at ?? input.started_at));
-
-    if (messages.length) {
-      db.prepare(
-        `INSERT OR IGNORE INTO jobs (id, user_id, conversation_id, job_type, due_at, idempotency_key, created_at)
-         VALUES (?, ?, ?, 'summarize', ?, ?, ?)`
-      ).run(randomUUID(), userId, id, nowIso(), `summarize:${id}:${messages.length}`, nowIso());
-    }
-    return { conversationId: id, created: !existing, changed: true };
-  })();
+  if (existing && existing.messages.length === messages.length) {
+    return { conversationId: id, created: false, changed: false };
+  }
+  save({
+    id,
+    source: "facetime",
+    started_at: existing?.started_at ?? input.started_at,
+    ended_at: input.ended_at ?? null,
+    title: existing?.title ?? null,
+    summary_status: messages.length ? "pending" : "empty",
+    summary: existing?.summary ?? null,
+    messages,
+  });
+  if (messages.length) queueSummary(id, messages.length, userId);
+  return { conversationId: id, created: !existing, changed: true };
 }
 
-export function listConversations(userId = DEMO_USER_ID): ConversationRow[] {
-  return getDb()
-    .prepare(
-      `SELECT c.id, c.source, c.started_at, c.ended_at, c.title, c.summary_status,
-              (SELECT COUNT(*) FROM conversation_messages m WHERE m.conversation_id = c.id) AS message_count
-       FROM conversations c WHERE c.user_id = ? ORDER BY c.started_at DESC`
-    )
-    .all(userId) as ConversationRow[];
-}
-
-export function getConversation(id: string, userId = DEMO_USER_ID) {
-  const db = getDb();
-  const row = db
-    .prepare(
-      `SELECT id, source, started_at, ended_at, title, summary_status, summary_json
-       FROM conversations WHERE id = ? AND user_id = ?`
-    )
-    .get(id, userId) as (Omit<ConversationRow, "message_count"> & { summary_json: string | null }) | undefined;
-  if (!row) return undefined;
-  const messages = db
-    .prepare("SELECT seq, role, text, created_at FROM conversation_messages WHERE conversation_id = ? ORDER BY seq")
-    .all(id) as Message[];
-  const { summary_json, ...rest } = row;
-  return { ...rest, summary: summary_json ? (JSON.parse(summary_json) as CallSummary) : null, messages };
+// One running iMessage thread per phone number.
+export function appendToThread(phone: string, message: Message): Conversation {
+  const id = conversationId("imessage", phone);
+  const conversation = getConversation(id) ?? {
+    id,
+    source: "imessage" as const,
+    started_at: message.at,
+    ended_at: null,
+    title: "iMessage",
+    summary_status: "none" as const,
+    summary: null,
+    messages: [],
+  };
+  conversation.messages.push(message);
+  conversation.ended_at = message.at;
+  save(conversation);
+  return conversation;
 }
 
 export function saveSummary(id: string, summary: CallSummary) {
-  getDb()
-    .prepare("UPDATE conversations SET title = ?, summary_json = ?, summary_status = 'done' WHERE id = ?")
-    .run(summary.title, JSON.stringify(summary), id);
+  const conversation = getConversation(id);
+  if (!conversation) return;
+  save({ ...conversation, title: summary.title, summary, summary_status: "done" });
 }
 
 export function markSummaryFailed(id: string) {
-  getDb().prepare("UPDATE conversations SET summary_status = 'failed' WHERE id = ?").run(id);
+  const conversation = getConversation(id);
+  if (conversation) save({ ...conversation, summary_status: "failed" });
 }

@@ -5,7 +5,7 @@ export type Job = {
   id: string;
   user_id: string;
   commitment_id: string | null;
-  conversation_id: string | null;
+  ref: string | null; // e.g. the JSON conversation a summarize job is for
   job_type: string;
   due_at: string;
   attempts: number;
@@ -21,7 +21,7 @@ export function claimDueJob(): Job | undefined {
   return db.transaction(() => {
     const job = db
       .prepare(
-        `SELECT id, user_id, commitment_id, conversation_id, job_type, due_at, attempts, idempotency_key
+        `SELECT id, user_id, commitment_id, ref, job_type, due_at, attempts, idempotency_key
          FROM jobs WHERE status = 'pending' AND due_at <= ? ORDER BY due_at LIMIT 1`
       )
       .get(nowIso()) as Job | undefined;

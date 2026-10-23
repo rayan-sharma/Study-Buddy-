@@ -156,9 +156,17 @@ export function getDb(): Database.Database {
   mkdirSync(dirname(file), { recursive: true });
   const db = new Database(file);
   db.exec(SCHEMA);
+  migrate(db);
   ensureDemoUser(db);
   globalForDb.studyBuddyDb = db;
   return db;
+}
+
+// Columns added after the first schema; CREATE TABLE IF NOT EXISTS won't add them to existing databases.
+function migrate(db: Database.Database) {
+  const jobColumns = db.prepare("PRAGMA table_info(jobs)").all() as { name: string }[];
+  // Points at a JSON conversation (data/conversations), which has no table to reference.
+  if (!jobColumns.some((c) => c.name === "ref")) db.exec("ALTER TABLE jobs ADD COLUMN ref TEXT");
 }
 
 function ensureDemoUser(db: Database.Database) {
