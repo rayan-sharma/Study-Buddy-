@@ -45,7 +45,7 @@ export function Hero() {
           {/* CTA buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
-              href="/Dashboard"
+              href="/login"
               className="w-full sm:w-auto inline-flex items-center justify-center px-8 py-4 bg-text-primary text-white hover:bg-text-primary/90 rounded-sm hover:shadow-soft hover:-translate-y-0.5 transition-all"
             >
               Start Studying
