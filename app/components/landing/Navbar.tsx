@@ -38,7 +38,7 @@ export function Navbar() {
 
         <div className="flex items-center gap-3">
           <Link
-            href="/Dashboard"
+            href="/login"
             className="hidden md:inline-flex bg-text-primary text-white hover:bg-text-primary/90 rounded-sm px-4 py-2 text-sm font-medium transition-colors"
           >
             Start Studying
@@ -69,7 +69,7 @@ export function Navbar() {
             </a>
           ))}
           <Link
-            href="/Dashboard"
+            href="/login"
             onClick={() => setMobileOpen(false)}
             className="block w-full mt-2 bg-text-primary text-white hover:bg-text-primary/90 rounded-sm px-4 py-3 text-sm font-medium text-center transition-colors"
           >

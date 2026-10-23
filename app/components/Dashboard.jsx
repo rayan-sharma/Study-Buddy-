@@ -2,10 +2,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import ChatbotWidget from "./ChatbotWidget";
 import D2LCanvas from "./D2LCanvas";
 import {
   BookOpen,
-  MessageCircle,
   CheckSquare,
   ListChecks,
   PenSquare,
@@ -518,7 +519,6 @@ const TABS = [
 ];
 
 const NAV = [
-  [MessageCircle, "Chat"],
   [CheckSquare, "Tasks"],
   [ListChecks, "Subjects"],
   [PenSquare, "D2L"],
@@ -643,6 +643,19 @@ export default function StudyBuddyDashboard() {
           <div style={{ flex: 1 }}>
             Shivam
             <small>Student</small>
+            <Link
+              href="/login"
+              style={{
+                display: "block",
+                marginTop: 4,
+                color: "#6c7cf5",
+                fontSize: 11,
+                fontWeight: 500,
+                textDecoration: "none",
+              }}
+            >
+              Sign in / switch account
+            </Link>
           </div>
           <ChevronDown size={14} color="#6b7280" />
         </div>
@@ -1102,6 +1115,7 @@ export default function StudyBuddyDashboard() {
           </section>
         </main>
       )}
+      <ChatbotWidget />
     </div>
   );
 }

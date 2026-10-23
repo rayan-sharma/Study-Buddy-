@@ -17,7 +17,7 @@ export function Footer() {
             board that keeps you on track, any time you need it.
           </p>
           <Link
-            href="/Dashboard"
+            href="/login"
             className="inline-flex items-center justify-center px-8 py-4 bg-text-primary text-white hover:bg-text-primary/90 rounded-sm hover:shadow-soft hover:-translate-y-0.5 transition-all"
           >
             Start Studying
