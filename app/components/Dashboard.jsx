@@ -6,6 +6,7 @@ import Link from "next/link";
 import ChatbotWidget from "./ChatbotWidget";
 import CanvasDashboard from "./CanvasDashboard";
 import D2LCanvas from "./D2LCanvas";
+import HistoryView from "./HistoryView";
 import QuestionListWidget from "./QuestionListWidget";
 import {
   BookOpen,
@@ -26,6 +27,7 @@ import {
   CalendarDays,
   AlarmClock,
   Phone,
+  History,
 } from "lucide-react";
 
 const css = `
@@ -589,6 +591,7 @@ const TABS = [
 
 const NAV = [
   [CheckSquare, "Tasks"],
+  [History, "History"],
   [ListChecks, "Subjects"],
   [PenSquare, "D2L"],
   [Settings, "Settings"],
@@ -1222,6 +1225,10 @@ export default function StudyBuddyDashboard() {
               )}
             </div>
           </aside>
+        </main>
+      ) : activeNav === "History" ? (
+        <main className="page" style={{ gridTemplateColumns: "1fr" }}>
+          <HistoryView />
         </main>
       ) : activeNav === "Subjects" ? (
         <main className="page" style={{ gridTemplateColumns: "1fr" }}>
