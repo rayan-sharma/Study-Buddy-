@@ -1,6 +1,6 @@
 // One-click demo: a linear algebra session starts now, the student gets a "study time" text, and the
 // browser opens FaceTime to the agent, which opens the call on that topic (see /api/agent/context).
-import { lineAddress } from "./calls";
+import { callUrl, lineAddress } from "./calls";
 import { callLinkText } from "./chert";
 import { textStudent, type TextResult } from "./imessage";
 import { scheduleStudy, startSession } from "./study";
@@ -21,5 +21,5 @@ export async function runDemo() {
   } catch (err) {
     text = { ok: false, reason: err instanceof Error ? err.message : String(err) };
   }
-  return { commitment, text, call: { url: `facetime-audio://${lineAddress()}`, line: lineAddress() } };
+  return { commitment, text, call: { url: callUrl(), line: lineAddress() } };
 }

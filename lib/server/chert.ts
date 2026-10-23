@@ -3,7 +3,7 @@
 // Server-only. Without CHERT_API_KEY every call reports "not configured" and callers fall back.
 import { randomUUID } from "node:crypto";
 import { env } from "./env";
-import { lineAddress } from "./calls";
+import { callUrl, lineAddress } from "./calls";
 
 // Overridable for local testing against a stand-in server.
 const base = () => env("CHERT_API_BASE") ?? "https://facetime.trychert.com/api/v1";
@@ -133,10 +133,9 @@ export async function listMessages(): Promise<ChertMessage[]> {
     .filter((m): m is ChertMessage => !!m);
 }
 
-// A FaceTime Audio link to the agent's line, plus the number itself (iMessage makes it tappable).
+// A FaceTime Video link to the agent's line, plus the number itself (iMessage makes it tappable).
 export function callLinkText() {
-  const line = lineAddress();
-  return `Tap to call your study buddy: facetime-audio://${line} (or FaceTime ${line})`;
+  return `Tap to video call your study buddy: ${callUrl()} (or FaceTime ${lineAddress()})`;
 }
 
 // Masked numbers ("•••0661") can only be compared on their last four digits.

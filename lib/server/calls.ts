@@ -8,11 +8,12 @@ export type CallStart =
 // The agent's FaceTime line. It changes when Chert assigns a new line after re-verifying (chert onboard).
 export const lineAddress = () => env("FACETIME_LINE_ADDRESS") ?? "+16282335326";
 
-// Opens FaceTime Audio on iPhone, iPad or Mac, calling the line that `chert dev` routes to the agent.
-const tapUrl = () => `facetime-audio://${lineAddress()}`;
+// Opens a FaceTime Video call (not facetime-audio://) on iPhone, iPad or Mac to the line `chert dev`
+// routes to the agent, so Study Buddy can see the student's camera.
+export const callUrl = () => `facetime://${lineAddress()}`;
 
 export async function startCall(commitmentId?: string): Promise<CallStart> {
   const session = commitmentId ? startSession(commitmentId) : undefined;
   // Outbound calling through Chert's API goes here first once it is enabled; tap-to-call is the fallback.
-  return { mode: "tap", url: tapUrl(), line: lineAddress(), session };
+  return { mode: "tap", url: callUrl(), line: lineAddress(), session };
 }
